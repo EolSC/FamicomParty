@@ -1,0 +1,71 @@
+{
+	// See https://go.microsoft.com/fwlink/?LinkId=733558
+	// for the documentation about the tasks.json format
+	"version": "2.0.0",
+	"tasks": [
+        {
+            "label": "Build ROM",
+            "type": "shell",
+            "command": "build.cmd",
+            "options": {
+                "env": {
+                    "OUTPUT_FILE": "testrom.nes",
+                    "OUTPUT_FOLDER": "build\\rom"
+                },
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "echo": false,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true,
+                "close": true
+            },
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Run ROM",
+            "type": "shell",
+            "command": "%MESEN_PATH%\\Mesen.exe %ROM_PATH%",
+            "options": {
+                "env": {
+                    "ROM_PATH": "build\\rom\\testrom.nes",
+                }
+            },
+            "presentation": {
+                "echo": false,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true,
+                "close": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build & Run ROM",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Build ROM",
+                "Run ROM"
+            ],
+            "presentation": {
+                "echo": false,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true,
+                "close": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}
