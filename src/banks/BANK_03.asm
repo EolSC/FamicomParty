@@ -1,0 +1,3 @@
+.segment "ROM_3"	; Страница данных 3...
+	.byte $03	; номер страницы
+	.byte "And nothing is wrong with fourth", 0
