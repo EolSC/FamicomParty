@@ -1,3 +1,0 @@
-.segment "ROM_2"	; Страница данных 2...
-	.byte $02	; номер страницы
-	.byte "Third is filled with this...    ", 0

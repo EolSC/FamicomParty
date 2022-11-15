@@ -17,13 +17,16 @@ vblank_counter:	.byte 0	; Счётчик прерываний VBlank
 
 .segment "RAM"		; Сегмент неинициалиsзированных данных в RAM
 
+text_table_offset: .byte 0
+
+
 ; С MMC3 в сегменте ROM_H у нас располагаются последние страницы ROM картриджа
 ; т.е. в данной конфигурации с 64Кб ROM - 6 и 7 по порядку.
 .segment "ROM_H"	; Сегмент данных в ПЗУ картриджа (страницы $C000-$FFFF)
 palettes:		; Подготовленные наборы палитр (для фона и для спрайтов)
 	; Повторяем наборы 2 раза - первый для фона и второй для спрайтов
 	.repeat 2	
-	.byte $0F, $00, $10, $20	; Черный, серый, светло-серый, белый
+	.byte $FF, $00, $10, $20	; Черный, серый, светло-серый, белый
 	.byte $0F, $16, $1A, $11	; -, красный, зеленый, синий
 	.byte $0F, $1A, $11, $16	; -, зеленый, синий, красный
 	.byte $0F, $11, $16, $1A	; -, синий, красный, зеленый
@@ -41,6 +44,7 @@ palettes:		; Подготовленные наборы палитр (для фо
 ; Обрабатывает наступление прерывания VBlank от PPU (см. процедуру wait_nmi)
 .proc nmi
 	inc vblank_counter	; Просто увеличим vblank_counter
+
 	rti			; Возврат из прерывания
 .endproc
 
@@ -60,8 +64,8 @@ notYet:	cmp vblank_counter
 ; вход:
 ;	arg0w - адрес таблицы с набором палитр (2 * 4 * 4 байта)
 .proc fill_palettes
-	fill_ppu_addr $3F00	; палитры в VRAM находятся по адресу $3F00
-	ldy # 0			; зануляем счётчик и одновременно индекс
+	fill_ppu_addr PPU_BGR_PALETTES	; палитры в VRAM находятся по адресу $3F00
+	ldy # 0							; зануляем счётчик и одновременно индекс
 loop:
 	lda (arg0w), y		; сложный режим адресации - к слову лежащему в zero page
 				; по однобайтовому адресу arg0w прибавляется Y и 
@@ -83,7 +87,50 @@ loop:	sta PPU_DATA		; записываем в VRAM аккумулятор
 	rts			; возврат из процедуры
 .endproc
 
-.import print_some
+; Метка начала таблицы текстов
+.import Text_table
+.import Cutscene_Table
+; выбирает текст из первого банка 
+; ипользует смещение text_table_offset
+; Портит A, Y; изменяет text_address
+.proc select_text_proc
+	store_addr address_pointer, Text_table
+	store arg0b, text_table_offset
+	; выставим банк BANK_PRG_TEXT_ENGINE и адрес load_from_table как
+	set_far_dest # BANK_PRG_TEXT_ENGINE, load_from_table			
+	jsr far_jsr			; и совершим межстраничный переход	
+						; загружаем буквы в PPU
+
+	store_word_to_word address_pointer, data_pointer
+	rts
+.endproc
+
+.proc hide_all_sprites 
+	; Отключим все спрайты выводом их за границу отрисовки по Y
+	ldx # 0		; В X разместим указатель на текущий спрайт
+	lda # $FF	; В A координата $FF по Y
+	ldy # $5F   ; В Y - пустой спрайт
+sz_loop:	
+	sta SPR_TBL, x	; Сохраним $FF в координату Y текущего спрайта
+	inx
+	inx
+	inx
+	inx		; И перейдём к следующему
+	bne sz_loop	; Если X не 0, то идём на следующую итерацию
+	rts
+.endproc
+
+
+
+; Импортируемые процедуры текстового движка
+.import print_string
+.import clear_text_area
+.import load_letters_sprites
+
+; Общие функции
+.import load_from_table
+.import load_sprite_from_table
+
 ; reset - стартовая точка всей программы - диктуется вторым адресом в сегменте 
 ; VECTORS оформлена как процедура, но вход в неё происходит при включении консоли 
 ; или сбросу её по кнопке RESET, поэтому ей некуда "возвращаться" и она 
@@ -102,14 +149,6 @@ loop:	sta PPU_DATA		; записываем в VRAM аккумулятор
 	; Теперь можно пользоваться стеком, например вызывать процедуры
 	jsr warm_up		; вызовем процедуру "разогрева" (см. neslib.s)
 	
-	store_addr arg0w, palettes	; параметр arg0w = адрес наборов палитр
-	jsr fill_palettes	; вызовем процедуру копирования палитр в PPU
-	
-	fill_page_by PPU_SCR0, # 7	; зальём SCR0 тайлом №7
-	fill_ppu_addr PPU_SCR0_ATTRS	; настроим PPU_ADDR на атрибуты SCR0
-	lda # 0				; выберем в A нулевую палитру
-	jsr fill_attribs		; и зальём её область атрибутов SCR0
-	
 	; Предварительно выставим банки памяти PPU просто по порядку
 	mmc3_set_bank_page # MMC3_CHR_H0, # 0
 	mmc3_set_bank_page # MMC3_CHR_H1, # 2
@@ -119,72 +158,114 @@ loop:	sta PPU_DATA		; записываем в VRAM аккумулятор
 	mmc3_set_bank_page # MMC3_CHR_Q3, # 7
 	
 	; Предварительно выставим банки памяти CPU
-	mmc3_set_bank_page # MMC3_PRG_H0, # 0	; В банке данных выберем страницу 0
-	mmc3_set_bank_page # MMC3_PRG_H1, # 5	; В банке кода выберем страницу 5
+	mmc3_set_bank_page # MMC3_PRG_H0, # BANK_SPRITES_LETTERS	; В банке данных выберем страницу спрайтов текста
+	mmc3_set_bank_page # MMC3_PRG_H1, # BANK_PRG_TEXT_ENGINE	; В банке кода выберем страницу BANK_PRG_TEXT_ENGINE
 	
 	store MMC3_MIRROR, # MMC3_MIRROR_V	; Выставим вертикальное зеркалирование
 	store MMC3_RAM_PROTECT, # 0		; Отключим RAM (если бы она даже была)
-	
-	; Отключим все спрайты выводом их за границу отрисовки по Y
-	ldx # 0		; В X разместим указатель на текущий спрайт
-	lda # $FF	; В A координата $FF по Y
-sz_loop:	
-	sta SPR_TBL, x	; Сохраним $FF в координату Y текущего спрайта
-	inx
-	inx
-	inx
-	inx		; И перейдём к следующему
-	bne sz_loop	; Если X не 0, то идём на следующую итерацию
-	
+
 	; **********************************************
 	; * Стартуем видеочип и запускаем все процессы *
 	; **********************************************
-	; Включим генерацию прерываний по VBlank и источником тайлов для спрайтов
-	; сделаем второй банк видеоданных где у нас находится шрифт.
-	store PPU_CTRL, # PPU_VBLANK_NMI | PPU_SPR_TBL_1000
-	; Включим отображение спрайтов и то что они отображаются в левых 8 столбцах пикселей
-	store PPU_MASK, # PPU_SHOW_BGR | PPU_SHOW_LEFT_BGR | PPU_SHOW_SPR | PPU_SHOW_LEFT_SPR
 	cli			; Разрешаем прерывания
-	
+
+	store PPU_CTRL, # 0 ; отключаем PPU перед записью
+	store PPU_MASK, # 0 ; отключаем PPU перед записью
+	; запрашиваем чтобы очистить адрес
+    LDX PPU_STATUS     
+	store_addr arg0w, palettes	; параметр arg0w = адрес наборов палитр	      	
+	jsr fill_palettes		; загружаем палитры
+	fill_ppu_addr PPU_SCR0_ATTRS	; настроим PPU_ADDR на атрибуты SCR0
+	lda # 0					; выберем в A нулевую палитру
+	jsr fill_attribs		; и зальём её область атрибутов SCR0	
+
+	jsr hide_all_sprites	; загружаем спрайты
+
+	; выставим банк BANK_PRG_TEXT_ENGINE и адрес load_letters_sprites как
+	set_far_dest # BANK_PRG_TEXT_ENGINE, load_letters_sprites			
+	jsr far_jsr			; и совершим межстраничный переход	
+						; загружаем буквы в PPU
+
+	fill_page_by PPU_SCR0, EMPTY_SYMBOL
+
+	; загружаем из Cutscene_Table изображение с индексом arg0b
+	store_addr address_pointer, Cutscene_Table
+	; в arg1w пишем конец таблицы символов
+	lda #00;.LOBYTE(TEXT_SPRITES_END_IN_PPU)
+	sta arg1w
+	lda #00;.HIBYTE(TEXT_SPRITES_END_IN_PPU)
+	sta arg1w + 1	
+	; выбираем  катсцену с индексом 0 
+	store arg0b, #0
+	; Предварительно выставим банки памяти CPU
+	mmc3_set_bank_page # MMC3_PRG_H0, # BANK_SPRITES_CUTSCENE	; В банке данных выберем страницу спрайтов текста
+	; выставим банк BANK_PRG_TEXT_ENGINE и адрес load_letters_sprites как
+	set_far_dest # BANK_PRG_TEXT_ENGINE, load_sprite_from_table			
+	jsr far_jsr			; и совершим межстраничный переход	
+						; загружаем буквы в PPU
+
 	; ***************************
 	; * Основной цикл программы *
 	; ***************************
-main_loop:
-	jsr wait_nmi		; ждём наступления VBlank
 
-	; Чтобы обновить таблицу спрайтов в видеочипе надо записать в OAM_ADDR ноль
-	store OAM_ADDR, # 0
-	; И активировать DMA записью верхнего байта адреса страницы с описаниями
-	store OAM_DMA, # >SPR_TBL
+	; Включим генерацию прерываний по VBlank и источником тайлов для спрайтов
+	; сделаем второй банк видеоданных где у нас находится шрифт.
+	store PPU_CTRL, # PPU_VBLANK_NMI | PPU_BGR_TBL_1000	
+	; Включим отображение спрайтов и то что они отображаются в левых 8 столбцах пикселей
+	store PPU_MASK, # PPU_SHOW_BGR | PPU_SHOW_LEFT_BGR | PPU_SHOW_SPR | PPU_SHOW_LEFT_SPR
 
-	lda $8000		; загрузим в A номер страницы в банке PRG_H0
-	sta arg0b		; сохраним его в arg0b
-	; если не нажата KEY_A - идём дальше
-	jump_if_keys1_was_not_pressed KEY_A, skip_A
-	inc arg0b		; иначе инкрементируем arg0b
-skip_A:
-	; если не нажата KEY_B - идём дальше
-	jump_if_keys1_was_not_pressed KEY_B, skip_B
-	dec arg0b		; иначе декрементируем arg0b
-skip_B:
-	lda # 3		; загружаем в A 3,
-	and arg0b	; накладываем по AND с arg0b (т.е. оставляем только 2 нижних бита)
-	sta arg0b	; и сохраняем обратно в arg0b (замкнули значение в диапазоне 0-3)
-	; Выставляем текущей страницей в PRG_H0 значение в arg0b
-	mmc3_set_bank_page # MMC3_PRG_H0, arg0b
-	
-	set_far_dest # 4, print_some	; выставим банк 4 и адрес print_some как
-					; цель межстраничного перехода
-	jsr far_jsr			; и совершим межстраничный переход
-	
-	store PPU_SCROLL, # 0	; Перед началом кадра выставим скроллинг
-	store PPU_SCROLL, # 0	; в (0, 0) чтобы панель рисовалась фиксированно
-	
-	; ********************************************************
-	; * После работы с VRAM можно заняться другими вещами... *
-	; ********************************************************
+	mmc3_set_bank_page # MMC3_PRG_H0, # BANK_DATA_TEXT	; В банке данных выберем страницу 0 т.к. дальше будет работа с текстами
+	lda #0
+	sta text_table_offset
+	jsr select_text_proc
 
-	jsr update_keys		; Обновим состояние кнопок опросив геймпады
+main_loop:		; основной цикл
 
-	jmp main_loop		; И уходим ждать нового VBlank в бесконечном цикле
+
+	jsr wait_nmi											; дожидаемся VBlank
+
+	lda printed_text_length									; проверяем допечатан ли текущий текст
+	cmp #MAX_TEXT_SIZE										; если в printed_text_length - #FF, значит текст отрисован
+	beq update_controller									; переходим на обновление ввода игрока
+	inc printed_text_length									; иначе увеличиваем printed_text_length
+	jmp update_text_main_loop								; и продолжаем рисовать текст
+
+update_text_main_loop:
+
+	store arg1b, #TEXT_BOX_X								; загружаем в arg0b координату X вывода
+	store arg0b, #TEXT_BOX_Y_UPPER							; загружаем в arg1b координату Y вывода	
+	set_far_dest # BANK_PRG_TEXT_ENGINE, print_string		; выставим банк 4 и адрес print_string как
+															; цель межстраничного перехода
+	jsr far_jsr												; и совершим межстраничный переход
+
+	jmp update_scroll
+update_controller:
+	jump_if_keys1_was_not_pressed KEY_START, update_scroll
+show_next_text:												; показываем следущий текст
+
+	lda #0													; обнуляем счетчик символов
+	sta printed_text_length
+	store arg1b, #TEXT_BOX_X								; загружаем в arg0b координату X вывода
+	store arg0b, #TEXT_BOX_Y_UPPER							; загружаем в arg1b координату Y вывода	
+	set_far_dest # BANK_PRG_TEXT_ENGINE, clear_text_area	; выставим банк 4 и адрес clear_text_area как
+															; цель межстраничного перехода
+	jsr far_jsr												; и совершим межстраничный переход
+
+	inc text_table_offset									; увиличиваем смещение в таблице текстов
+	jsr select_text_proc									; загружаем адрес следующего текста
+	lda text_table_offset
+	cmp #TEXT_COUNT											; проверям дошли ли до концаю Умножение на 2 т.к. каждый адрес это word
+	beq reset_text_table_offset								; если да - сбрасываем 
+
+update_scroll:
+
+	store PPU_SCROLL, # 0									; Перед началом кадра выставим скроллинг
+	store PPU_SCROLL, # 0									; в (0, 0) чтобы панель рисовалась фиксированно	
+	jsr update_keys											; Обновим состояние кнопок опросив геймпады
+	jmp main_loop											; И уходим ждать нового VBlank в бесконечном цикле
+reset_text_table_offset:									; сброс таблицы текстов
+
+	store text_table_offset, #0								; сбрасываем смещение
+	jsr select_text_proc										; обновляем адрес рисуемого текста
+	jmp main_loop											; и возвращаемся в цикл
 .endproc
