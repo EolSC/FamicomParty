@@ -19,14 +19,15 @@
 .endmacro
 
 .macro MULT_WORD_BY_16 addr
-	ASL addr
-	ROL	addr+1
-	ASL addr
-	ROL	addr+1
-	ASL addr
-	ROL	addr+1
-	ASL addr
-	ROL	addr+1
+	MULT_WORD_BY_2 addr
+	MULT_WORD_BY_2 addr
+	MULT_WORD_BY_2 addr
+	MULT_WORD_BY_2 addr
+.endmacro
+
+.macro MULT_WORD_BY_32 addr
+	MULT_WORD_BY_16 addr
+	MULT_WORD_BY_2 addr
 .endmacro
 
 .macro MULT_BY_2_BYTE addr
@@ -81,17 +82,4 @@
 	ASL A
 	ASL A
 	ASL A
-.endmacro
-
-.macro MULT_WORD_BY_32 addr
-	ASL addr
-	ROL	addr+1
-	ASL addr
-	ROL	addr+1
-	ASL addr
-	ROL	addr+1
-	ASL addr
-	ROL	addr+1
-	ASL addr
-	ROL	addr+1	
 .endmacro

@@ -1,11 +1,6 @@
 .include "include/neslib.inc"	; подключим заголовк neslib.inc
 .include "include/mmc3.inc"	; подключим заголовк neslib.inc
 
-.segment "RAM"			
-				
-; Кнопки нажатые на геймпадах во время предыдущего вызова update_keys.
-keys1_prev:	.byte 0
-keys2_prev:	.byte 0
 
 ; Сегмент кода в ROM картриджа, причём последние его 16 Кб ($C000-FFFF).
 ; Третья четверть ROM ($8000-BFFF) пока зарезервирована под использование с мапперами.
@@ -50,6 +45,16 @@ loop:	lda JOY_PAD1		; Грузим очередную кнопку от перв
 	sta keys2_was_pressed
 	rts			; возвращаемся из процедуры
 .endproc
+; clear_game_ram - очистка игровой RAN
+.proc clear_game_ram
+	store active_ppu_ctrl, #0
+	store active_ppu_mask, #0
+	store generic_counter, #0
+	store game_state, #0
+	store player_state_flags, #0
+
+	rts
+.endproc
 
 ; clear_ram - очистка памяти zero page и участка $0200-07FF
 ; портит: arg0w
@@ -71,6 +76,8 @@ loop2:	sta (arg0w), y		; [ [ arg0w ] + y ] = a
 	inc arg0w + 1		; увеличиваем старший байт arg0w
 	cpx arg0w + 1		; и если он не достиг границы в X
 	bne loop2		; то повторяем цикл
+
+	jsr clear_game_ram	; чистим игровые переменные
 	rts			; возврат из процедуры
 .endproc
 

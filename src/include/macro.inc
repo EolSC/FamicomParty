@@ -1,5 +1,15 @@
-.include "addition.inc"
-.include "multiplication.inc"
+; "Охранная" проверка на недопущение
+; повторного ключения файла
+.ifndef MACRO_INC_GUARD
+MACRO_INC_GUARD		= 1		; Охранный символ
+
+.include "macro_utils/addition.inc"
+.include "macro_utils/branching.inc"
+.include "macro_utils/division.inc"
+.include "macro_utils/logic.inc"
+.include "macro_utils/multiplication.inc"
+.include "macro_utils/stack.inc"
+.include "macro_utils/subtraction.inc"
 
 ; ********************
 ; * Полезные макросы *
@@ -18,6 +28,22 @@
 .macro store dest, src
 	lda src
 	sta dest
+.endmacro
+
+; store dest, src - сохранить байт в память
+; чтобы избежать обильных многословных конструкций вида из:
+;	lda значение
+;	sta переменная	; переменная = значение
+; которые заполняют переменные в памяти этот макрос
+; позволяет записывать в одну строку:
+;	store переменная, значение	; переменная = значение
+; dest и src могут быть любыми аргументами инструкций lda/sta
+; так что обратите внимание, что нужен префикс # для констант!
+; портит аккумулятор!
+.macro store_2_values dest1, dest2,  src
+	lda src
+	sta dest1
+	sta dest2
 .endmacro
 
 ; store_addr dest, addr - сохранить адрес в слово в памяти
@@ -80,6 +106,26 @@
 	sta PPU_ADDR
 .endmacro
 
+; jump_if_keys1_is_down - перейти на метку label если в keys1_is_down
+; зажжён хотя бы один бит в переданном сканкоде key_code.
+; Т.е. можно передать несколько битовых паттернов кнопок 
+; наложенных по OR и если хоть одна окажется нажата - перехода не будет.
+; портит аккумулятор!
+.macro jump_if_keys1_is_down key_code, label
+	lda keys1_is_down
+	and # key_code
+	bne label
+.endmacro
+
+; jump_if_keys2_is_down - перейти на метку label если в keys2_is_down
+; зажжён хотя бы один бит в переданном сканкоде key_code.
+; портит аккумулятор!
+.macro jump_if_keys2_is_down key_code, label
+	lda keys2_is_down
+	and # key_code
+	bne label
+.endmacro
+
 ; jump_if_keys1_is_not_down - перейти на метку label если в keys1_is_down
 ; не зажжён хотя бы один бит в переданном сканкоде key_code.
 ; Т.е. можно передать несколько битовых паттернов кнопок 
@@ -108,6 +154,13 @@
 	beq label
 .endmacro
 
+; jump_if_keys1_was_pressed - перейти на метку label если в keys1_was_pressed
+; зажжён хотя бы один бит в переданном сканкоде key_code.
+.macro jump_if_keys1_was_pressed key_code, label
+	lda keys1_was_pressed
+	and # key_code
+	bne label
+.endmacro
 ; jump_if_keys2_was_not_pressed - перейти на метку label если в keys2_was_pressed
 ; не зажжён хотя бы один бит в переданном сканкоде key_code.
 .macro jump_if_keys2_was_not_pressed key_code, label
@@ -166,6 +219,25 @@ mloop:	sta PPU_DATA
 	bne mloop
 .endmacro
 
+.macro clear_background_table 
+	.local mloopx
+	.local mloopy
+	
+	lda PPU_STATUS
+	fill_ppu_addr PPU_BGR_TBL
+	ldy #$10
+	lda #00
+mloopy:	
+	ldx # $FF
+
+mloopx:	
+	sta PPU_DATA
+	dex
+	bne mloopx
+	dey
+	bne mloopy
+.endmacro
+
 ; set_sprite - установить все поля спрайта
 .macro	set_sprite num, cx, cy, tile, attr
 	store SPR_FLD_X( num ), cx
@@ -191,4 +263,4 @@ mloop:	sta PPU_DATA
 	sta to + 1
 .endmacro
 
-
+.endif

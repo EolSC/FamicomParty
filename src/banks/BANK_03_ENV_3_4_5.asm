@@ -2,6 +2,7 @@
 
 .segment "ROM_3"	; Страница данных 
 	.byte BANK_SPRITES_ENV_3_4_5	; номер страницы
+Environment_Table2:		
 	.WORD Environment_3
 	.WORD Environment_4
 	.WORD Environment_5

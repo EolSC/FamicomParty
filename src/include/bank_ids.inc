@@ -25,14 +25,13 @@ BANK_SPRITES_CUTSCENE	= $06
 ; Катсцены
 BANK_SPRITES_TITLE	= $07
 
-; Заглушка под банк
-BANK_DATA_08	= $08
-; Заглушка под банк
-BANK_DATA_09	= $09
+; Тайлмапы 1
+BANK_TILEMAPS_01 = $08
+; Банк для палитр
+BANK_PALETTES_01 = $09
 
+; Тайлмапы 2
+BANK_TILEMAPS_02 = $0A
+; Тайлмапы 3
+BANK_TILEMAPS_03 = $0B
 
-; Функции текстового движка
-BANK_PRG_TEXT_ENGINE = $A
-
-; Функции(другие)
-BANK_PRG_2 = $B
