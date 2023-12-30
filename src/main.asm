@@ -209,7 +209,8 @@ sz_loop:
 	sta arg0b								 		; восстанавливаем из стека номер тайлмапа и кладем в arg0b
 	store_word_to_word address_pointer, arg3w 		; восстанавливаем адрес таблицы тайлмапов
 	ADD_WORD_TO_WORD_IMM arg1w, PPU_ATTR_OFFSET
-	jsr load_tilemap_attributes_from_table
+	; TODO: запись аттрибутов работает неверно, нужно отладить что идет не так
+	; jsr load_tilemap_attributes_from_table
 	rts
 .endproc
 
