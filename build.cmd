@@ -15,8 +15,10 @@ mkdir %OUTPUT_FOLDER%
 echo Building solution...
 echo Source folder: %SRCFOLDER%
 for /R %SRCFOLDER% %%F in (*.asm) do ca65 --verbose %%F -g -o %OBJFOLDER%\\%%~nF.o -l %OBJFOLDER%\\%%~nF.listing
-for %%F in (%OBJFOLDER%\*.o) do set "OBJFILES=!OBJFILES! %%F"
+for %%F in (%OBJFOLDER%\*.o) do set "OBJFILES=!OBJFILES! %%~nxF"
 echo Linking solution...
-ld65 %OBJFILES% -C %CFG_FILE% -o %OUTPUT_FOLDER%\\%OUTPUT_FILE%.nes --dbgfile %OUTPUT_FOLDER%\\%OUTPUT_FILE%.dbg -m %OUTPUT_FOLDER%\\%OUTPUT_FILE%.map
+ld65 --obj-path %OBJFOLDER% %OBJFILES% -C %CFG_FILE% -o %OUTPUT_FOLDER%\\%OUTPUT_FILE%.nes --dbgfile %OUTPUT_FOLDER%\\%OUTPUT_FILE%.dbg -m %OUTPUT_FOLDER%\\%OUTPUT_FILE%.map
 echo Done building
 
+echo Formatting dbg
+powershell -Command "(gc %OUTPUT_FOLDER%\\%OUTPUT_FILE%.dbg).Replace('%~dp0%SRCFOLDER%\', '').Replace('%~dp0%SRCFOLDER%/', '') | Out-File -encoding ASCII %OUTPUT_FOLDER%\\%OUTPUT_FILE%.dbg"
