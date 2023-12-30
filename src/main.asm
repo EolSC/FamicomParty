@@ -184,12 +184,12 @@ sz_loop:
 ; вход :
 ; address_pointer - адрес таблицы спрайтов
 ; data_pointer - адрес таблицы тайлмапов
-; arg1w - адрес в PPU вкоторый грузим данные
+; arg1w - адрес в PPU вкоторый грузим спрайты
+; arg2w - адрес в PPU с которого грузить тайлы
 ; arg0b - номер изображения 
 ; arg1b - номер тайлмапа 
 ; sprite_bank - номер банка спрайтов
 ; tilemap_bank - номер банка тайлмапа
-; arg2w - адрес в PPU с которого грузить изображение
 .proc load_image_by_index 
 	lda arg1b ; запоминаем arg1b в стек
 	pha
@@ -200,13 +200,14 @@ sz_loop:
 	pla 
 	sta arg1b ; достаем из стека оффсет для тайл мапа
 	pha
-	store_word_to_word address_pointer, arg3w ; восстанавливаем адрес таблицы тайлмапов
-	store arg0b, arg1b						  ; передаем оффсет тайлмапа в arg0b
+	store_word_to_word arg1w, arg2w 				; копируем в arg1w адрес в PPU для тайлмапов
+	store_word_to_word address_pointer, arg3w 		; восстанавливаем адрес таблицы тайлмапов
+	store arg0b, arg1b						  		; передаем оффсет тайлмапа в arg0b
 	mmc3_set_bank_page # MMC3_PRG_H1, tilemap_bank	; В банке данных выберем страницу tilemap_bank
 	jsr load_tilemap_from_table
 	pla 
-	sta arg0b								  ; восстанавливаем из стека номер тайлмапа и кладем в arg0b
-	store_word_to_word address_pointer, arg3w ; восстанавливаем адрес таблицы тайлмапов
+	sta arg0b								 		; восстанавливаем из стека номер тайлмапа и кладем в arg0b
+	store_word_to_word address_pointer, arg3w 		; восстанавливаем адрес таблицы тайлмапов
 	ADD_WORD_TO_WORD_IMM arg1w, PPU_ATTR_OFFSET
 	jsr load_tilemap_attributes_from_table
 	rts
@@ -218,22 +219,23 @@ sz_loop:
 ; вход :
 ; address_pointer - адрес таблицы спрайтов
 ; data_pointer - адрес таблицы тайлмапов
-; arg2w - адрес в PPU вкоторый грузим данные
+; arg2w - адрес в PPU в который грузим спрайты
+; arg3w - адрес в PPU в который грузить тайлы
 ; arg0b - номер изображения 
 ; arg1b - номер тайлмапа 
 ; arg2b - номер палитры
 ; sprite_bank - номер банка спрайтов
 ; tilemap_bank - номер банка тайлмапа
-; arg2w - адрес в PPU с которого грузить изображение
+
 .proc load_background_image
 	jsr clear_ppu_state
 	A_TO_STACK arg0b
 	A_TO_STACK arg1b
-	store_word_to_word arg3w, arg2w
 	jsr load_pallete_by_index
 	FROM_STACK_TO_A arg1b
 	FROM_STACK_TO_A arg0b
-	store_word_to_word arg1w, arg3w
+	store_word_to_word arg1w, arg2w ; копируем в arg1w адрес для спрайтов
+	store_word_to_word arg2w, arg3w ; копируем в arg2w адрес для тайлмапов
 	jsr load_image_by_index
 	jsr wait_next_frame
 	rts
@@ -254,10 +256,10 @@ sz_loop:
 	store tilemap_bank, #BANK_TILEMAPS_01
 	; индекс для палитры копирайта
 	store arg2b, #DATA_PALETTE_COPYRIGHT
-
-	; пишем данные в nametable для Background
+	; пишем данные спрайтов бекграунда
 	store_addr arg2w, PPU_BGR_TBL
-
+	; пишем данные в nametable для Background
+	store_addr arg3w, PPU_SCR0
 	jsr load_background_image
 	rts
 .endproc
@@ -688,12 +690,12 @@ exit:
 	; * Основной цикл программы *
 	; ***************************
 
-	jsr enable_cheats
+	; jsr enable_cheats
 	jsr hide_all_sprites	; загружаем спрайты
 
 	; Включим генерацию прерываний по VBlank и источником тайлов для спрайтов
 	; сделаем второй банк видеоданных где у нас находится шрифт.
-	store active_ppu_ctrl, # PPU_VBLANK_NMI | PPU_BGR_TBL_1000 | PPU_SCR_Y240	
+	store active_ppu_ctrl, # PPU_VBLANK_NMI | PPU_BGR_TBL_1000 
 	; Включим отображение спрайтов и то что они отображаются в левых 8 столбцах пикселей
 	store active_ppu_mask, # PPU_SHOW_BGR | PPU_SHOW_SPR | PPU_SHOW_LEFT_BGR 
 
@@ -806,7 +808,7 @@ set_difficulty_easy:
 start_new_game:
 	store prev_ppu_scroll_x, #$80
 	store prev_ppu_scroll_y, #$00
-	store ppu_scroll_x, #$180
+	store ppu_scroll_x, #$80
 	store ppu_scroll_y, #$F0
 	jsr clear_ppu_state
 	clear_background_table
