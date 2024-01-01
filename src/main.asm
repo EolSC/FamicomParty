@@ -204,13 +204,20 @@ sz_loop:
 	store_word_to_word address_pointer, arg3w 		; восстанавливаем адрес таблицы тайлмапов
 	store arg0b, arg1b						  		; передаем оффсет тайлмапа в arg0b
 	mmc3_set_bank_page # MMC3_PRG_H1, tilemap_bank	; В банке данных выберем страницу tilemap_bank
+	store tilemap_min_x, #0							; грузим без скороллинга т.к. эта функция для полноэкранных изображений
+	store tilemap_min_y, #0							; 
+	store tilemap_max_x, #SCREEN_SPRITE_COUNT_X		; грузим полноэкранное изображение, 32х20
+	store tilemap_max_y, #SCREEN_SPRITE_COUNT_Y
 	jsr load_tilemap_from_table
 	pla 
 	sta arg0b								 		; восстанавливаем из стека номер тайлмапа и кладем в arg0b
 	store_word_to_word address_pointer, arg3w 		; восстанавливаем адрес таблицы тайлмапов
+	store_word_to_word arg1w, arg2w 				; копируем в arg1w адрес в PPU для тайлмапов
 	ADD_WORD_TO_WORD_IMM arg1w, PPU_ATTR_OFFSET
-	; TODO: запись аттрибутов работает неверно, нужно отладить что идет не так
-	; jsr load_tilemap_attributes_from_table
+	store tilemap_max_x, #SCREEN_ATTRIBUTE_COUNT_X	; грузим аттрибуты для полноэкранного
+	store tilemap_max_y, #SCREEN_ATTRIBUTE_COUNT_Y
+
+	jsr load_tilemap_attributes_from_table
 	rts
 .endproc
 
@@ -283,8 +290,10 @@ sz_loop:
 	; индекс для палитры копирайта
 	store arg2b, #DATA_PALETTE_CUTSCENE_01
 
-	; пишем данные в nametable для Background
+	; пишем данные спрайтов бекграунда
 	store_addr arg2w, PPU_BGR_TBL
+	; пишем данные в nametable для Background
+	store_addr arg3w, PPU_SCR0
 
 	jsr load_background_image
 	store arg1b, #MAX_TEXT_CUTSCENE_01
@@ -310,8 +319,10 @@ sz_loop:
 	; индекс для палитры копирайта
 	store arg2b, #DATA_PALETTE_CUTSCENE_02
 
-	; пишем данные в nametable для Background
+	; пишем данные спрайтов бекграунда
 	store_addr arg2w, PPU_BGR_TBL
+	; пишем данные в nametable для Background
+	store_addr arg3w, PPU_SCR0
 
 	jsr load_background_image
 	store arg1b, #MAX_TEXT_CUTSCENE_02	
@@ -332,8 +343,10 @@ sz_loop:
 	; индекс для палитры копирайта
 	store arg2b, #DATA_PALETTE_CUTSCENE_03
 
-	; пишем данные в nametable для Background
+	; пишем данные спрайтов бекграунда
 	store_addr arg2w, PPU_BGR_TBL
+	; пишем данные в nametable для Background
+	store_addr arg3w, PPU_SCR0
 
 	jsr load_background_image
 	store arg1b, #MAX_TEXT_CUTSCENE_03	
@@ -354,8 +367,10 @@ sz_loop:
 	; индекс для палитры копирайта
 	store arg2b, #DATA_PALETTE_CUTSCENE_04
 
-	; пишем данные в nametable для Background
+	; пишем данные спрайтов бекграунда
 	store_addr arg2w, PPU_BGR_TBL
+	; пишем данные в nametable для Background
+	store_addr arg3w, PPU_SCR0
 
 	jsr load_background_image
 	store arg1b, #MAX_TEXT_CUTSCENE_04	
@@ -376,8 +391,10 @@ sz_loop:
 	; индекс для палитры копирайта
 	store arg2b, #DATA_PALETTE_LOGO
 
-	; пишем данные в nametable для Background
+	; пишем данные спрайтов бекграунда
 	store_addr arg2w, PPU_BGR_TBL
+	; пишем данные в nametable для Background
+	store_addr arg3w, PPU_SCR0
 
 	jsr load_background_image
 	rts
@@ -397,8 +414,10 @@ sz_loop:
 	; индекс для палитры копирайта
 	store arg2b, #DATA_PALETTE_LOGO
 
-	; пишем данные в nametable для Background
+	; пишем данные спрайтов бекграунда
 	store_addr arg2w, PPU_BGR_TBL
+	; пишем данные в nametable для Background
+	store_addr arg3w, PPU_SCR0
 
 	jsr load_background_image
 	rts
@@ -418,8 +437,10 @@ sz_loop:
 	; индекс для палитры копирайта
 	store arg2b, #DATA_PALETTE_LOGO
 
-	; пишем данные в nametable для Background
+	; пишем данные спрайтов бекграунда
 	store_addr arg2w, PPU_BGR_TBL
+	; пишем данные в nametable для Background
+	store_addr arg3w, PPU_SCR0
 
 	jsr load_background_image
 	rts
@@ -702,13 +723,6 @@ exit:
 
 	store ppu_scroll_x, #0
 	store ppu_scroll_y, #0
-
-	store tilemap_min_x, #0						; init min/max tilemap size
-	store tilemap_min_y, #0						; using (0,0,SCREEN_SPRITE_COUNT_X, SCREEN_SPRITE_COUNT_Y) for fullscreen images
-	store tilemap_max_x, #SCREEN_SPRITE_COUNT_X	; such as Copyright, Cutscenes, TitleScreen
-	store tilemap_max_y, #SCREEN_SPRITE_COUNT_Y
-
-
 
 	lda selected_cheat
 	cmp #CHEAT_SKIP_ALL_INTRO

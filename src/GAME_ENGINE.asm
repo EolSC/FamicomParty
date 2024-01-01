@@ -1,6 +1,6 @@
 ; Подключаем заголовок библиотеки Famicom/NES/Денди
-.include "../include/neslib.inc"
-.include "../include/mmc3.inc"
+.include "include/neslib.inc"
+.include "include/mmc3.inc"
 .segment "ROM_H"	
 
 
@@ -352,7 +352,7 @@ next_step:
 .proc load_tilemap_attributes
 	jsr calc_scroll_tilemap_attributes
 	jsr calc_tilemap_size
-	ADD_WORD_TO_WORD_IMM address_pointer, (PPU_SCR0_ATTRS - PPU_SCR0)
+	ADD_WORD_TO_WORD_IMM address_pointer, PPU_ATTR_OFFSET
 	; данные подготовлены, грузим их в PPU
 	jsr read_tilemap_chunk
 	rts
