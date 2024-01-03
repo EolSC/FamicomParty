@@ -18,6 +18,9 @@
 .import clear_text_area
 .import load_letters_sprites
 
+; импортируемые функции движка работы с комнатами
+.import enter_room_proc
+
 ; Общие функции
 .import load_from_table
 .import load_sprite_from_table
@@ -446,48 +449,6 @@ sz_loop:
 	rts
 .endproc
 
-.proc load_environment_sprites
-	; загружаем из Environment_Table1 изображение с индексом arg0b
-	store_addr address_pointer, Environment_Table1
-	store arg0b, #DATA_SPRITE_ENVIRONMENT
-	store sprite_bank, #BANK_SPRITES_ENV_1_2_7
-	; пишем данные в nametable для Background
-	store_addr arg1w, PPU_BGR_TBL
-	jsr load_sprite_from_table
-
-	; индекс для палитры фона
-	store arg2b, #DATA_PALETTE_ENVIRONMENT
-	jsr load_pallete_by_index
-	
-	rts
-.endproc
-
-.proc load_environment_tilemap
-	store_addr address_pointer, Tilemap_Table2
-
-	store arg0b, #DATA_TILEMAP_ENVIRONMENT1
-	jsr load_from_table
-	store_addr tilemap_address_upleft, data_pointer
-
-	store arg0b, #DATA_TILEMAP_ENVIRONMENT2
-	jsr load_from_table
-	store_addr tilemap_address_upright, data_pointer
-
-	store arg0b, #DATA_TILEMAP_ENVIRONMENT3
-	jsr load_from_table
-	store_addr tilemap_address_downleft, data_pointer
-
-	store arg0b, #DATA_TILEMAP_ENVIRONMENT4
-	jsr load_from_table
-	store_addr tilemap_address_downright, data_pointer
-
-	store arg0b, #DATA_TILEMAP_ENVIRONMENT4
-	jsr load_from_table
-	store_addr tilemap_address_downright, data_pointer
-	jsr update_nametable_scrolling
-	rts
-.endproc
-
 ; анимация выбранной опции в стартовом меню
 ;портит А, argob
 .proc blink_selected_text
@@ -667,6 +628,26 @@ exit:
 	store selected_cheat, #CHEAT_SKIP_ALL_INTRO
 	rts
 .endproc
+
+; Инициализация нового игрока
+; Заполняет все стартовые данные в RAM - инвентарь, ящик, триггеры локаций
+.proc init_new_player
+	
+	rts
+.endproc
+
+; Процедура старта игры. Вызывается 1 раз после всех стартовых меню
+; Очищает данные об игроке
+; Спавнит игрока в стартовой комнате игры
+.proc start_game_proc
+	jsr init_new_player		; инициализируем RAM
+	store arg0b, #ROOM_ID_HALL
+	store arg1b, #0
+	jsr enter_room_proc	; спавним игрока в Холле через деврь с индексом 0	
+	rts
+.endproc
+
+
 ; reset - стартовая точка всей программы - диктуется вторым адресом в сегменте 
 ; VECTORS оформлена как процедура, но вход в неё происходит при включении консоли 
 ; или сбросу её по кнопке RESET, поэтому ей некуда "возвращаться" и она 
@@ -821,16 +802,9 @@ set_difficulty_easy:
 	jmp show_select_difficulty	
 
 start_new_game:
-	store prev_ppu_scroll_x, #$80
-	store prev_ppu_scroll_y, #$00
-	store ppu_scroll_x, #$80
-	store ppu_scroll_y, #$F0
 	jsr clear_ppu_state
 	clear_background_table
-	jsr load_environment_sprites
-	jsr load_environment_tilemap
-	jsr update_nametable_scrolling
-	jsr update_ppu_state
+	jsr start_game_proc
 	store game_state, #GAME_STATE_INTRO_CUTSCENE
 main_game:
 	jump_if_keys1_is_down KEY_LEFT, test_scroll_left		; тестируем скроллинг

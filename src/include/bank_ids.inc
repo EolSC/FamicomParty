@@ -34,4 +34,6 @@ BANK_PALETTES_01 = $09
 BANK_TILEMAPS_02 = $0A
 ; Тайлмапы 3
 BANK_TILEMAPS_03 = $0B
+; Данные о комнатах
+BANK_ROOMDATA = $0C
 

@@ -20,7 +20,7 @@ inventory_slot5:    .word 0
 inventory_slot6:    .word 0
 inventory_slot7:    .word 0
 
-; резерв под 100 байт ящика
+; резерв под 100 WORD ящика
 .res 200
 
 ; резерв оставшейся памяти
